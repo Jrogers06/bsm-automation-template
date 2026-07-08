@@ -1,0 +1,31 @@
+require('dotenv').config();
+const express = require('express');
+const app = express();
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Routes
+const ghlRoutes = require('./routes/ghl');
+const typeformRoutes = require('./routes/typeform');
+const stripeRoutes = require('./routes/stripe');
+const whopRoutes = require('./routes/whop');
+const airtableRoutes = require('./routes/airtable');
+const eodRoutes = require('./routes/eod');
+
+app.use('/ghl', ghlRoutes);
+app.use('/typeform', typeformRoutes);
+app.use('/stripe', stripeRoutes);
+app.use('/whop', whopRoutes);
+app.use('/airtable', airtableRoutes);
+app.use('/eod', eodRoutes);
+
+// Health check
+app.get('/', (req, res) => {
+  res.json({ status: 'BSM Automation Template is running' });
+});
+
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
