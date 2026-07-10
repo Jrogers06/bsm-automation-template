@@ -39,32 +39,38 @@ function buildCallFields(body) {
 async function addToSheet(body) {
   try {
     const sheets = await getSheets();
-    const sheetName = process.env.REVENUE_SHEET_NAME || 'Sheet1';
     const spreadsheetId = process.env.REVENUE_SHEET_ID;
-
     const now = new Date().toLocaleDateString('en-GB');
+    const contactId = body.contact_id || body.contactId || '';
+    const profileLink = getContactGHLLink(contactId);
+
     const row = [
-      body.contact_name || body.full_name || '',
-      body.email || '',
-      body.phone || '',
-      now,
-      body.calendar_name || '',
-      `https://app.gohighlevel.com/location/${process.env.GHL_LOCATION_ID}/contacts/detail/${body.contact_id || ''}`,
-      now,
-      body.appointment_date || '',
-      '', '', '', '', '',
-      body.appointment_id || '',
-      '', '', '',
-      body.assigned_user || '',
-      body.timezone || '',
+      body.contact_name || body.full_name || '',  // A - Name
+      body.email || '',                            // B - Email Address
+      now,                                         // C - Date
+      body.calendar_name || '',                    // D - Booked By/Calendar Source
+      profileLink,                                 // E - Profile Link
+      now,                                         // F - Created
+      body.appointment_date || '',                 // G - Scheduled For
+      '',                                          // H - Platform (manual)
+      '',                                          // I - Lead Type (manual)
+      '',                                          // J - Status (manual)
+      '',                                          // K - Next FU (manual)
+      '',                                          // L - Qualified? (manual)
+      '',                                          // M - Notes (manual)
+      body.appointment_id || '',                   // N - Appointment ID
+      '',                                          // O - Zoom Link (manual)
+      body.assigned_user || '',                    // P - Call Taken By
+      body.timezone || '',                         // Q - Lead's Timezone
     ];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `${sheetName}!A:S`,
+      range: `Sales CRM!A:Q`,
       valueInputOption: 'USER_ENTERED',
       resource: { values: [row] },
     });
+    console.log('Added to Sales CRM sheet successfully');
   } catch (err) {
     console.error('Google Sheets error:', err.message);
   }
