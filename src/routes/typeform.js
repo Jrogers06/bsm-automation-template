@@ -34,8 +34,20 @@ router.post('/webhook', async (req, res) => {
         case 'number':
           value = String(answer.number) || 'N/A';
           break;
+        case 'calendly':
+          value = 'Call Booked ✅';
+          break;
+        case 'url':
+          value = answer.url || 'N/A';
+          break;
+        case 'date':
+          value = answer.date || 'N/A';
+          break;
+        case 'file_url':
+          value = answer.file_url || 'N/A';
+          break;
         default:
-          value = JSON.stringify(answer) || 'N/A';
+          value = answer.url || answer.text || answer.email || JSON.stringify(answer) || 'N/A';
       }
 
       const titleLower = fieldTitle.toLowerCase();
@@ -43,17 +55,24 @@ router.post('/webhook', async (req, res) => {
         titleLower.includes('invest') ||
         titleLower.includes('capital') ||
         titleLower.includes('afford') ||
-        titleLower.includes('budget')
+        titleLower.includes('budget') ||
+        titleLower.includes('commit') ||
+        titleLower.includes('ready')
       ) {
         const valueLower = value.toLowerCase();
-        if (valueLower.includes('yes') || valueLower.includes('i have')) {
+        if (
+          valueLower.includes('yes') ||
+          valueLower.includes('i have') ||
+          valueLower.includes('i am') ||
+          valueLower.includes('ready')
+        ) {
           isQualified = true;
         }
       }
 
       discordFields.push({
         name: fieldTitle,
-        value: value.substring(0, 1024),
+        value: String(value).substring(0, 1024),
         inline: false
       });
     });
