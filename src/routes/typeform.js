@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendDiscordMessage } = require('../utils/discord');
 
 router.post('/webhook', async (req, res) => {
   try {
@@ -8,7 +8,7 @@ router.post('/webhook', async (req, res) => {
     const answers = payload.form_response?.answers || [];
     const fields_def = payload.form_response?.definition?.fields || [];
 
-    const discordFields = [];
+    const lines = [];
     let isQualified = false;
 
     answers.forEach((answer, index) => {
@@ -20,34 +20,28 @@ router.post('/webhook', async (req, res) => {
         case 'text':
         case 'email':
         case 'phone_number':
-          value = answer[answer.type] || 'N/A';
+          value = answer[answer.type] || '';
           break;
         case 'choice':
-          value = answer.choice?.label || 'N/A';
+          value = answer.choice?.label || '';
           break;
         case 'choices':
-          value = answer.choices?.labels?.join(', ') || 'N/A';
+          value = answer.choices?.labels?.join(', ') || '';
           break;
         case 'boolean':
           value = answer.boolean ? 'Yes' : 'No';
           break;
         case 'number':
-          value = String(answer.number) || 'N/A';
+          value = String(answer.number) || '';
           break;
         case 'calendly':
           value = 'Call Booked ✅';
           break;
         case 'url':
-          value = answer.url || 'N/A';
-          break;
-        case 'date':
-          value = answer.date || 'N/A';
-          break;
-        case 'file_url':
-          value = answer.file_url || 'N/A';
+          value = answer.url || '';
           break;
         default:
-          value = answer.url || answer.text || answer.email || JSON.stringify(answer) || 'N/A';
+          value = answer.url || answer.text || answer.email || '';
       }
 
       const titleLower = fieldTitle.toLowerCase();
@@ -57,31 +51,35 @@ router.post('/webhook', async (req, res) => {
         titleLower.includes('afford') ||
         titleLower.includes('budget') ||
         titleLower.includes('commit') ||
-        titleLower.includes('ready')
+        titleLower.includes('ready') ||
+        titleLower.includes('residency') ||
+        titleLower.includes('qualify')
       ) {
         const valueLower = value.toLowerCase();
         if (
           valueLower.includes('yes') ||
           valueLower.includes('i have') ||
-          valueLower.includes('i am') ||
-          valueLower.includes('ready')
+          valueLower.includes('ready') ||
+          valueLower.includes('12 months')
         ) {
           isQualified = true;
         }
       }
 
-      discordFields.push({
-        name: fieldTitle,
-        value: String(value).substring(0, 1024),
-        inline: false
-      });
+      if (value) {
+        lines.push(`**${fieldTitle}**`);
+        lines.push(value);
+        lines.push('');
+      }
     });
 
-    const color = isQualified ? COLORS.GREEN : COLORS.BLUE;
-    const title = isQualified ? '🟢 New Qualified Lead' : '🔵 New Unqualified Lead';
+    const now = new Date().toLocaleDateString('en-GB');
+    const title = isQualified
+      ? `**New Lead Optin - QUALIFIED**\nTime ${now}`
+      : `**New Lead Optin - UNQUALIFIED**\nTime ${now}`;
 
-    const embed = createEmbed(title, discordFields, color);
-    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, embed);
+    const message = `${title}\n\n${lines.join('\n')}`;
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, message);
 
     res.json({ success: true });
   } catch (err) {
