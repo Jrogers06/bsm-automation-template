@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendDiscordMessage, buildPlainMessage } = require('../utils/discord');
 const { google } = require('googleapis');
 
 async function getSheets() {
@@ -19,21 +19,29 @@ function getContactGHLLink(contactId) {
   return `https://app.gohighlevel.com/location/${locationId}/contacts/detail/${contactId}`;
 }
 
-function buildCallFields(body) {
+function buildCallMessage(title, body) {
   const contactId = body.contact_id || body.contactId || '';
   const contactName = body.contact_name || body.full_name || 'Unknown';
   const ghlLink = getContactGHLLink(contactId);
 
-  return [
-    { name: '👤 Contact', value: `[${contactName}](${ghlLink})`, inline: true },
-    { name: '📧 Email', value: body.email || 'N/A', inline: true },
-    { name: '📞 Phone', value: body.phone || 'N/A', inline: true },
-    { name: '📅 Calendar', value: body.calendar_name || 'N/A', inline: true },
-    { name: '🧑‍💼 Closer', value: body.assigned_user || 'N/A', inline: true },
-    { name: '🔀 Pipeline', value: body.pipeline_name || 'N/A', inline: true },
-    { name: '🌍 Timezone', value: body.timezone || 'N/A', inline: true },
-    { name: '📆 Appointment', value: body.appointment_date || 'N/A', inline: true },
-  ];
+  return buildPlainMessage(title, [
+    { name: 'Name', value: `[${contactName}](${ghlLink})` },
+    { name: 'Phone', value: body.phone },
+    { name: 'First_name', value: body.first_name },
+    { name: 'Email', value: body.email },
+    { name: 'Last_name', value: body.last_name },
+    { name: 'Full_name', value: contactName },
+    { name: 'Tags', value: body.tags },
+    { name: 'Timezone', value: body.timezone },
+    { name: 'Date_created', value: body.date_created },
+    { name: 'Opportunity_name', value: body.opportunity_name || contactName },
+    { name: 'Lead_value', value: body.opportunity_value },
+    { name: 'Pipeline_stage', value: body.pipeline_stage },
+    { name: 'Pipeline_name', value: body.pipeline_name },
+    { name: 'Calendar', value: body.calendar_name },
+    { name: 'Closer', value: body.assigned_user },
+    { name: 'Appointment', value: body.appointment_date },
+  ]);
 }
 
 async function addToSheet(body) {
@@ -45,23 +53,23 @@ async function addToSheet(body) {
     const profileLink = getContactGHLLink(contactId);
 
     const row = [
-      body.contact_name || body.full_name || '',  // A - Name
-      body.email || '',                            // B - Email Address
-      now,                                         // C - Date
-      body.calendar_name || '',                    // D - Booked By/Calendar Source
-      profileLink,                                 // E - Profile Link
-      now,                                         // F - Created
-      body.appointment_date || '',                 // G - Scheduled For
-      '',                                          // H - Platform (manual)
-      '',                                          // I - Lead Type (manual)
-      '',                                          // J - Status (manual)
-      '',                                          // K - Next FU (manual)
-      '',                                          // L - Qualified? (manual)
-      '',                                          // M - Notes (manual)
-      body.appointment_id || '',                   // N - Appointment ID
-      '',                                          // O - Zoom Link (manual)
-      body.assigned_user || '',                    // P - Call Taken By
-      body.timezone || '',                         // Q - Lead's Timezone
+      body.contact_name || body.full_name || '',
+      body.email || '',
+      now,
+      body.calendar_name || '',
+      profileLink,
+      now,
+      body.appointment_date || '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      body.appointment_id || '',
+      '',
+      body.assigned_user || '',
+      body.timezone || '',
     ];
 
     await sheets.spreadsheets.values.append({
@@ -78,8 +86,8 @@ async function addToSheet(body) {
 
 router.post('/booked-call', async (req, res) => {
   try {
-    const embed = createEmbed('📞 New Booked Call', buildCallFields(req.body), COLORS.PURPLE);
-    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, embed);
+    const msg = buildCallMessage('Pipeline: Call Booked', req.body);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, msg);
     await addToSheet(req.body);
     res.json({ success: true });
   } catch (err) {
@@ -89,8 +97,8 @@ router.post('/booked-call', async (req, res) => {
 
 router.post('/confirmed-call', async (req, res) => {
   try {
-    const embed = createEmbed('✅ Confirmed Call', buildCallFields(req.body), COLORS.GREEN);
-    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_CONFIRMED_CALLS, embed);
+    const msg = buildCallMessage('Pipeline: Confirmed Call', req.body);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_CONFIRMED_CALLS, msg);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -99,8 +107,8 @@ router.post('/confirmed-call', async (req, res) => {
 
 router.post('/no-show', async (req, res) => {
   try {
-    const embed = createEmbed('❌ No Show', buildCallFields(req.body), COLORS.RED);
-    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NO_SHOW, embed);
+    const msg = buildCallMessage('Pipeline: No Show', req.body);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NO_SHOW, msg);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -109,8 +117,8 @@ router.post('/no-show', async (req, res) => {
 
 router.post('/cancelled', async (req, res) => {
   try {
-    const embed = createEmbed('🚫 Cancelled Call', buildCallFields(req.body), COLORS.ORANGE);
-    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_CANCELLED, embed);
+    const msg = buildCallMessage('Pipeline: Cancelled', req.body);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_CANCELLED, msg);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -119,8 +127,8 @@ router.post('/cancelled', async (req, res) => {
 
 router.post('/follow-up', async (req, res) => {
   try {
-    const embed = createEmbed('🔄 Follow Up', buildCallFields(req.body), COLORS.YELLOW);
-    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FOLLOW_UP, embed);
+    const msg = buildCallMessage('Pipeline: Follow Up', req.body);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FOLLOW_UP, msg);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -133,21 +141,22 @@ router.post('/closed-deal', async (req, res) => {
     const contactName = req.body.contact_name || req.body.full_name || 'Unknown';
     const ghlLink = getContactGHLLink(contactId);
 
-    const fields = [
-      { name: '👤 Contact', value: `[${contactName}](${ghlLink})`, inline: true },
-      { name: '📧 Email', value: req.body.email || 'N/A', inline: true },
-      { name: '📞 Phone', value: req.body.phone || 'N/A', inline: true },
-      { name: '📅 Calendar', value: req.body.calendar_name || 'N/A', inline: true },
-      { name: '🧑‍💼 Closer', value: req.body.assigned_user || 'N/A', inline: true },
-      { name: '🔀 Pipeline', value: req.body.pipeline_name || 'N/A', inline: true },
-      { name: '🌍 Timezone', value: req.body.timezone || 'N/A', inline: true },
-      { name: '💰 Value', value: req.body.opportunity_value || 'N/A', inline: true },
-      { name: '📆 Appointment', value: req.body.appointment_date || 'N/A', inline: true },
-      { name: '📝 Notes', value: req.body.opportunity_notes || 'N/A', inline: false },
-    ];
+    const msg = buildPlainMessage('Pipeline: Closed Deal 🏆', [
+      { name: 'Name', value: `[${contactName}](${ghlLink})` },
+      { name: 'Phone', value: req.body.phone },
+      { name: 'Email', value: req.body.email },
+      { name: 'Full_name', value: contactName },
+      { name: 'Tags', value: req.body.tags },
+      { name: 'Timezone', value: req.body.timezone },
+      { name: 'Opportunity_name', value: req.body.opportunity_name || contactName },
+      { name: 'Lead_value', value: req.body.opportunity_value },
+      { name: 'Pipeline_stage', value: req.body.pipeline_stage },
+      { name: 'Pipeline_name', value: req.body.pipeline_name },
+      { name: 'Owner', value: req.body.assigned_user },
+      { name: 'Notes', value: req.body.opportunity_notes },
+    ]);
 
-    const embed = createEmbed('🏆 CLOSED DEAL', fields, COLORS.GOLD);
-    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_CLOSED_DEAL, embed);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_CLOSED_DEAL, msg);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
