@@ -1,26 +1,27 @@
 const axios = require('axios');
 
-async function sendDiscordMessage(webhookUrl, embed) {
+async function sendDiscordMessage(webhookUrl, content) {
   try {
-    await axios.post(webhookUrl, {
-      embeds: [embed]
-    });
+    const payload = typeof content === 'string' 
+      ? { content } 
+      : { embeds: [content] };
+    
+    await axios.post(webhookUrl, payload);
   } catch (error) {
     console.error('Discord webhook error:', error.message);
   }
 }
 
-function createEmbed(title, fields, color = 0x5865F2) {
-  return {
-    title,
-    color,
-    fields: fields.map(f => ({
-      name: f.name,
-      value: String(f.value || 'N/A').substring(0, 1024),
-      inline: f.inline || false
-    })),
-    timestamp: new Date().toISOString()
-  };
+function buildPlainMessage(title, fields) {
+  const lines = [`**${title}**`, ''];
+  fields.forEach(f => {
+    if (f.value && f.value !== 'N/A') {
+      lines.push(`**${f.name}**`);
+      lines.push(f.value);
+      lines.push('');
+    }
+  });
+  return lines.join('\n');
 }
 
 const COLORS = {
@@ -33,4 +34,4 @@ const COLORS = {
   ORANGE: 0xFF6600,
 };
 
-module.exports = { sendDiscordMessage, createEmbed, COLORS };
+module.exports = { sendDiscordMessage, buildPlainMessage, COLORS };
