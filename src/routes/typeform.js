@@ -55,7 +55,7 @@ router.post('/webhook', async (req, res) => {
           }
       }
 
-      // Qualifying logic - question 10 (investment question)
+      // Qualifying logic - only evaluated for booked call message
       const titleLower = fieldTitle.toLowerCase();
       if (
         titleLower.includes('invest') ||
@@ -64,18 +64,12 @@ router.post('/webhook', async (req, res) => {
         titleLower.includes('afford') ||
         titleLower.includes('budget') ||
         titleLower.includes('commit') ||
-        titleLower.includes('ready') ||
-        titleLower.includes('residency') ||
-        titleLower.includes('qualify') ||
         titleLower.includes('payment plan')
       ) {
         const valueLower = value.toLowerCase();
         if (
           valueLower.includes('yes') ||
-          valueLower.includes('can invest') ||
-          valueLower.includes('i have') ||
-          valueLower.includes('ready') ||
-          valueLower.includes('12 months')
+          valueLower.includes('can invest')
         ) {
           isQualified = true;
         }
@@ -90,7 +84,7 @@ router.post('/webhook', async (req, res) => {
       }
     });
 
-    // Backup Calendly check on all fields
+    // Backup Calendly check
     if (!hasCalendly) {
       hasCalendly = discordFields.some(f =>
         f.value &&
@@ -100,16 +94,16 @@ router.post('/webhook', async (req, res) => {
     }
 
     if (hasCalendly) {
-      // Second submission - booking confirmed - send to call-booked channel
-      const embed = createEmbed('📞 New Call Booked', discordFields, COLORS.PURPLE);
-      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, embed);
-    } else {
-      // First submission - new lead - send to new-lead channel
+      // Booked call - show qualified or unqualified
       const color = isQualified ? COLORS.GREEN : COLORS.BLUE;
       const title = isQualified
-        ? 'New Lead Optin - QUALIFIED'
-        : 'New Lead Optin - UNQUALIFIED';
+        ? '📞 New Call Booked - QUALIFIED'
+        : '📞 New Call Booked - UNQUALIFIED';
       const embed = createEmbed(title, discordFields, color);
+      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, embed);
+    } else {
+      // New lead - no qualification label
+      const embed = createEmbed('New Lead Optin', discordFields, COLORS.BLUE);
       await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, embed);
     }
 
