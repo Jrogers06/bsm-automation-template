@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { sendDiscordMessage } = require('../utils/discord');
+const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
 
 router.post('/webhook', async (req, res) => {
   try {
@@ -8,8 +8,12 @@ router.post('/webhook', async (req, res) => {
     const answers = payload.form_response?.answers || [];
     const fields_def = payload.form_response?.definition?.fields || [];
 
-    const lines = [];
+    const discordFields = [];
     let isQualified = false;
+
+    const now = new Date().toLocaleDateString('en-GB').replace(/\//g, '/');
+
+    discordFields.push({ name: 'Time', value: now, inline: true });
 
     answers.forEach((answer, index) => {
       const fieldDef = fields_def[index];
@@ -35,7 +39,7 @@ router.post('/webhook', async (req, res) => {
           value = String(answer.number) || '';
           break;
         case 'calendly':
-          value = 'Call Booked ✅';
+          value = answer.url || 'Call Booked ✅';
           break;
         case 'url':
           value = answer.url || '';
@@ -67,19 +71,19 @@ router.post('/webhook', async (req, res) => {
       }
 
       if (value) {
-        lines.push(`**${fieldTitle}**`);
-        lines.push(value);
-        lines.push('');
+        discordFields.push({
+          name: fieldTitle,
+          value: String(value).substring(0, 1024),
+          inline: true
+        });
       }
     });
 
-    const now = new Date().toLocaleDateString('en-GB');
-    const title = isQualified
-      ? `**New Lead Optin - QUALIFIED**\nTime ${now}`
-      : `**New Lead Optin - UNQUALIFIED**\nTime ${now}`;
+    const color = isQualified ? COLORS.GREEN : COLORS.BLUE;
+    const title = isQualified ? 'New Lead Optin - QUALIFIED' : 'New Lead Optin - UNQUALIFIED';
 
-    const message = `${title}\n\n${lines.join('\n')}`;
-    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, message);
+    const embed = createEmbed(title, discordFields, color);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, embed);
 
     res.json({ success: true });
   } catch (err) {
