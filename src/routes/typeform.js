@@ -11,7 +11,6 @@ router.post('/webhook', async (req, res) => {
     const discordFields = [];
     let isQualified = false;
     let hasCalendly = false;
-    let calendlyUrl = '';
 
     const now = new Date().toLocaleDateString('en-GB');
     discordFields.push({ name: 'Time', value: now, inline: true });
@@ -41,30 +40,39 @@ router.post('/webhook', async (req, res) => {
           break;
         case 'calendly':
           hasCalendly = true;
-          calendlyUrl = answer.url || '';
-          value = calendlyUrl;
+          value = answer.url || 'Call Booked ✅';
           break;
         case 'url':
           value = answer.url || '';
+          if (value.includes('calendly.com') && value.includes('invitees')) {
+            hasCalendly = true;
+          }
           break;
         default:
           value = answer.url || answer.text || answer.email || '';
+          if (value && value.includes('calendly.com') && value.includes('invitees')) {
+            hasCalendly = true;
+          }
       }
 
+      // Qualifying logic - question 10 (investment question)
       const titleLower = fieldTitle.toLowerCase();
       if (
         titleLower.includes('invest') ||
+        titleLower.includes('£3500') ||
         titleLower.includes('capital') ||
         titleLower.includes('afford') ||
         titleLower.includes('budget') ||
         titleLower.includes('commit') ||
         titleLower.includes('ready') ||
         titleLower.includes('residency') ||
-        titleLower.includes('qualify')
+        titleLower.includes('qualify') ||
+        titleLower.includes('payment plan')
       ) {
         const valueLower = value.toLowerCase();
         if (
           valueLower.includes('yes') ||
+          valueLower.includes('can invest') ||
           valueLower.includes('i have') ||
           valueLower.includes('ready') ||
           valueLower.includes('12 months')
@@ -75,12 +83,21 @@ router.post('/webhook', async (req, res) => {
 
       if (value) {
         discordFields.push({
-          name: fieldTitle,
+          name: fieldTitle.substring(0, 256),
           value: String(value).substring(0, 1024),
           inline: true
         });
       }
     });
+
+    // Backup Calendly check on all fields
+    if (!hasCalendly) {
+      hasCalendly = discordFields.some(f =>
+        f.value &&
+        f.value.includes('calendly.com') &&
+        f.value.includes('invitees')
+      );
+    }
 
     if (hasCalendly) {
       // Second submission - booking confirmed - send to call-booked channel
@@ -89,7 +106,9 @@ router.post('/webhook', async (req, res) => {
     } else {
       // First submission - new lead - send to new-lead channel
       const color = isQualified ? COLORS.GREEN : COLORS.BLUE;
-      const title = isQualified ? 'New Lead Optin - QUALIFIED' : 'New Lead Optin - UNQUALIFIED';
+      const title = isQualified
+        ? 'New Lead Optin - QUALIFIED'
+        : 'New Lead Optin - UNQUALIFIED';
       const embed = createEmbed(title, discordFields, color);
       await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, embed);
     }
