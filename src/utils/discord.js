@@ -1,37 +1,37 @@
 const axios = require('axios');
 
-async function sendDiscordMessage(webhookUrl, content) {
+async function sendDiscordMessage(webhookUrl, embed) {
   try {
-    const payload = typeof content === 'string' 
-      ? { content } 
-      : { embeds: [content] };
-    
-    await axios.post(webhookUrl, payload);
+    await axios.post(webhookUrl, { embeds: [embed] });
   } catch (error) {
     console.error('Discord webhook error:', error.message);
   }
 }
 
-function buildPlainMessage(title, fields) {
-  const lines = [`**${title}**`, ''];
-  fields.forEach(f => {
-    if (f.value && f.value !== 'N/A') {
-      lines.push(`**${f.name}**`);
-      lines.push(f.value);
-      lines.push('');
-    }
-  });
-  return lines.join('\n');
+function createEmbed(title, fields, color) {
+  return {
+    title,
+    color,
+    fields: fields
+      .filter(f => f.value && f.value !== 'N/A' && f.value !== '')
+      .map(f => ({
+        name: f.name,
+        value: String(f.value).substring(0, 1024),
+        inline: f.inline !== false
+      })),
+    timestamp: new Date().toISOString(),
+    footer: { text: 'BSM Bot • Opportunity Pipeline' }
+  };
 }
 
 const COLORS = {
-  GREEN: 0x00FF00,
-  BLUE: 0x0000FF,
-  PURPLE: 0x800080,
-  YELLOW: 0xFFFF00,
-  RED: 0xFF0000,
-  GOLD: 0xFFD700,
-  ORANGE: 0xFF6600,
+  GREEN: 0x57F287,
+  BLUE: 0x5865F2,
+  PURPLE: 0x9B59B6,
+  YELLOW: 0xF1C40F,
+  RED: 0xED4245,
+  GOLD: 0xF59E0B,
+  ORANGE: 0xE67E22,
 };
 
-module.exports = { sendDiscordMessage, buildPlainMessage, COLORS };
+module.exports = { sendDiscordMessage, createEmbed, COLORS };
