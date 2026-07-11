@@ -10,9 +10,10 @@ router.post('/webhook', async (req, res) => {
 
     const discordFields = [];
     let isQualified = false;
+    let hasCalendly = false;
+    let calendlyUrl = '';
 
-    const now = new Date().toLocaleDateString('en-GB').replace(/\//g, '/');
-
+    const now = new Date().toLocaleDateString('en-GB');
     discordFields.push({ name: 'Time', value: now, inline: true });
 
     answers.forEach((answer, index) => {
@@ -39,7 +40,9 @@ router.post('/webhook', async (req, res) => {
           value = String(answer.number) || '';
           break;
         case 'calendly':
-          value = answer.url || 'Call Booked ✅';
+          hasCalendly = true;
+          calendlyUrl = answer.url || '';
+          value = calendlyUrl;
           break;
         case 'url':
           value = answer.url || '';
@@ -79,11 +82,17 @@ router.post('/webhook', async (req, res) => {
       }
     });
 
-    const color = isQualified ? COLORS.GREEN : COLORS.BLUE;
-    const title = isQualified ? 'New Lead Optin - QUALIFIED' : 'New Lead Optin - UNQUALIFIED';
-
-    const embed = createEmbed(title, discordFields, color);
-    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, embed);
+    if (hasCalendly) {
+      // Second submission - booking confirmed - send to call-booked channel
+      const embed = createEmbed('📞 New Call Booked', discordFields, COLORS.PURPLE);
+      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, embed);
+    } else {
+      // First submission - new lead - send to new-lead channel
+      const color = isQualified ? COLORS.GREEN : COLORS.BLUE;
+      const title = isQualified ? 'New Lead Optin - QUALIFIED' : 'New Lead Optin - UNQUALIFIED';
+      const embed = createEmbed(title, discordFields, color);
+      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, embed);
+    }
 
     res.json({ success: true });
   } catch (err) {
