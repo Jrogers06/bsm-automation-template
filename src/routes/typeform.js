@@ -2,11 +2,41 @@ const express = require('express');
 const router = express.Router();
 const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
 
+// Abbreviate long Typeform question titles
+function abbreviateTitle(title) {
+  const map = {
+    'are you a permanent resident of the uk or us': 'Permanent Resident?',
+    'what industry do you currently work in': 'Industry',
+    'what is your current job title or role': 'Current Job',
+    'how much are you currently earning per year': 'Income',
+    'why do you want to break into tech sales': 'Why Tech Sales',
+    'have you already applied for or interviewed for any tech sales roles': 'Already Applying?',
+    "what's your biggest concern or hesitation about making this career switch": 'Concerns / Hesitations',
+    'how soon are you looking to make this transition': 'Timeline',
+    'the investment for our program is': 'Investment',
+    'to be approved for a 12-month payment plan': 'Credit Score',
+    'now, book your tech sales career coaching call': 'Call Booking 1',
+    'schedule your tech sales career coaching call below': 'Call Booking 2',
+    'how did you hear about entr tech': 'Source',
+    'first name': 'First Name',
+    'last name': 'Last Name',
+    'phone number': 'Phone',
+    'email': 'Email',
+  };
+
+  const lower = title.toLowerCase();
+  for (const [key, val] of Object.entries(map)) {
+    if (lower.includes(key)) return val;
+  }
+  return title;
+}
+
 router.post('/webhook', async (req, res) => {
   try {
     const payload = req.body;
     const answers = payload.form_response?.answers || [];
     const fields_def = payload.form_response?.definition?.fields || [];
+    const hidden = payload.form_response?.hidden || {};
 
     const discordFields = [];
     let isQualified = false;
@@ -17,7 +47,8 @@ router.post('/webhook', async (req, res) => {
 
     answers.forEach((answer, index) => {
       const fieldDef = fields_def[index];
-      const fieldTitle = fieldDef?.title || `Question ${index + 1}`;
+      const rawTitle = fieldDef?.title || `Question ${index + 1}`;
+      const fieldTitle = abbreviateTitle(rawTitle);
       let value = '';
 
       switch (answer.type) {
@@ -55,22 +86,15 @@ router.post('/webhook', async (req, res) => {
           }
       }
 
-      // Qualifying logic - only evaluated for booked call message
-      const titleLower = fieldTitle.toLowerCase();
+      // Qualifying logic
+      const titleLower = rawTitle.toLowerCase();
       if (
         titleLower.includes('invest') ||
         titleLower.includes('£3500') ||
-        titleLower.includes('capital') ||
-        titleLower.includes('afford') ||
-        titleLower.includes('budget') ||
-        titleLower.includes('commit') ||
         titleLower.includes('payment plan')
       ) {
         const valueLower = value.toLowerCase();
-        if (
-          valueLower.includes('yes') ||
-          valueLower.includes('can invest')
-        ) {
+        if (valueLower.includes('yes') || valueLower.includes('can invest')) {
           isQualified = true;
         }
       }
@@ -84,6 +108,21 @@ router.post('/webhook', async (req, res) => {
       }
     });
 
+    // Add UTM data if present
+    if (hidden && Object.keys(hidden).length > 0) {
+      const utmLines = Object.entries(hidden)
+        .filter(([k, v]) => v)
+        .map(([k, v]) => `**${k}:** ${v}`)
+        .join('\n');
+      if (utmLines) {
+        discordFields.push({
+          name: 'ATTRIBUTION',
+          value: utmLines,
+          inline: false
+        });
+      }
+    }
+
     // Backup Calendly check
     if (!hasCalendly) {
       hasCalendly = discordFields.some(f =>
@@ -94,7 +133,6 @@ router.post('/webhook', async (req, res) => {
     }
 
     if (hasCalendly) {
-      // Booked call - show qualified or unqualified
       const color = isQualified ? COLORS.GREEN : COLORS.BLUE;
       const title = isQualified
         ? '📞 New Call Booked - QUALIFIED'
@@ -102,7 +140,6 @@ router.post('/webhook', async (req, res) => {
       const embed = createEmbed(title, discordFields, color);
       await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, embed);
     } else {
-      // New lead - no qualification label
       const embed = createEmbed('New Lead Optin', discordFields, COLORS.BLUE);
       await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, embed);
     }
