@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const axios = require('axios');
 
 // Abbreviate long Typeform question titles
 function abbreviateTitle(title) {
@@ -31,6 +32,27 @@ function abbreviateTitle(title) {
   return title;
 }
 
+async function createGHLContact(contactData) {
+  try {
+    const response = await axios.post(
+      'https://services.leadconnectorhq.com/contacts/',
+      contactData,
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.GHL_API_KEY}`,
+          'Content-Type': 'application/json',
+          'Version': '2021-07-28'
+        }
+      }
+    );
+    console.log('GHL contact created:', response.data?.contact?.id);
+    return response.data?.contact;
+  } catch (err) {
+    console.error('GHL contact creation error:', err.response?.data || err.message);
+    return null;
+  }
+}
+
 router.post('/webhook', async (req, res) => {
   try {
     const payload = req.body;
@@ -41,6 +63,13 @@ router.post('/webhook', async (req, res) => {
     const discordFields = [];
     let isQualified = false;
     let hasCalendly = false;
+
+    // Extract contact info
+    let firstName = '';
+    let lastName = '';
+    let phone = '';
+    let email = '';
+    let source = '';
 
     const now = new Date().toLocaleDateString('en-GB');
     discordFields.push({ name: 'Time', value: now, inline: true });
@@ -53,9 +82,15 @@ router.post('/webhook', async (req, res) => {
 
       switch (answer.type) {
         case 'text':
+          value = answer.text || '';
+          break;
         case 'email':
+          value = answer.email || '';
+          email = value;
+          break;
         case 'phone_number':
-          value = answer[answer.type] || '';
+          value = answer.phone_number || '';
+          phone = value;
           break;
         case 'choice':
           value = answer.choice?.label || '';
@@ -86,8 +121,13 @@ router.post('/webhook', async (req, res) => {
           }
       }
 
-      // Qualifying logic
+      // Extract name fields
       const titleLower = rawTitle.toLowerCase();
+      if (titleLower.includes('first name')) firstName = value;
+      if (titleLower.includes('last name')) lastName = value;
+      if (titleLower.includes('how did you hear')) source = value;
+
+      // Qualifying logic
       if (
         titleLower.includes('invest') ||
         titleLower.includes('£3500') ||
@@ -133,6 +173,7 @@ router.post('/webhook', async (req, res) => {
     }
 
     if (hasCalendly) {
+      // Booked call - send to call-booked channel
       const color = isQualified ? COLORS.GREEN : COLORS.BLUE;
       const title = isQualified
         ? '📞 New Call Booked - QUALIFIED'
@@ -140,6 +181,21 @@ router.post('/webhook', async (req, res) => {
       const embed = createEmbed(title, discordFields, color);
       await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, embed);
     } else {
+      // New lead - create contact in GHL + send to new-lead channel
+      const contactData = {
+        firstName,
+        lastName,
+        email,
+        phone,
+        locationId: process.env.GHL_LOCATION_ID,
+        source: source || 'Typeform',
+        tags: ['typeform-lead'],
+      };
+
+      if (firstName || email || phone) {
+        await createGHLContact(contactData);
+      }
+
       const embed = createEmbed('New Lead Optin', discordFields, COLORS.BLUE);
       await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, embed);
     }
