@@ -1,5 +1,5 @@
 const express = require('express');
-const router = express.Router();
+const router = require('express').Router();
 const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
 
 function buildPaymentFields(data) {
@@ -15,27 +15,44 @@ function buildPaymentFields(data) {
 router.post('/webhook', async (req, res) => {
   try {
     const event = req.body;
-    const membership = event.data || {};
+    const action = event.action || event.event;
+    const data = event.data || {};
 
-    const data = {
-      name: membership.user?.name || 'N/A',
-      amount: membership.renewal_period_price
-        ? `£${membership.renewal_period_price}`
-        : 'N/A',
-      email: membership.user?.email || 'N/A',
-      phone: membership.user?.phone_number || 'N/A',
-      product: membership.product?.name || 'N/A',
-    };
+    let name = 'N/A';
+    let email = 'N/A';
+    let phone = 'N/A';
+    let amount = 'N/A';
+    let product = 'N/A';
 
-    const fields = buildPaymentFields(data);
+    // Extract data based on event type
+    if (data.user) {
+      name = data.user.name || data.user.username || 'N/A';
+      email = data.user.email || 'N/A';
+      phone = data.user.phone_number || 'N/A';
+    }
 
-    if (event.action === 'membership.went_valid') {
+    if (data.final_amount !== undefined) {
+      amount = `£${(data.final_amount / 100).toFixed(2)}`;
+    } else if (data.amount !== undefined) {
+      amount = `£${(data.amount / 100).toFixed(2)}`;
+    }
+
+    if (data.product) {
+      product = data.product.name || 'N/A';
+    } else if (data.plan) {
+      product = data.plan.plan_type || 'N/A';
+    }
+
+    const paymentData = { name, email, phone, amount, product };
+    const fields = buildPaymentFields(paymentData);
+
+    if (action === 'payment_succeeded' || action === 'membership_activated') {
       const embed = createEmbed('💳 New Whop Payment', fields, COLORS.GOLD);
       await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_PAYMENTS, embed);
-    } else if (event.action === 'membership.went_invalid') {
+    } else if (action === 'payment_failed' || action === 'membership_deactivated') {
       const embed = createEmbed('❌ Failed Whop Payment', fields, COLORS.RED);
       await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, embed);
-    } else if (event.action === 'membership.dispute.created') {
+    } else if (action === 'dispute_created') {
       const embed = createEmbed('⚠️ Whop Dispute', fields, COLORS.ORANGE);
       await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, embed);
     }
