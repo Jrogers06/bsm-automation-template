@@ -45,10 +45,10 @@ async function createGHLContact(contactData) {
         }
       }
     );
-    console.log('GHL contact created:', response.data?.contact?.id);
+    console.log('GHL contact created successfully:', response.data?.contact?.id);
     return response.data?.contact;
   } catch (err) {
-    console.error('GHL contact creation error:', err.response?.data || err.message);
+    console.error('GHL contact creation error:', err.response?.status, JSON.stringify(err.response?.data));
     return null;
   }
 }
@@ -173,7 +173,6 @@ router.post('/webhook', async (req, res) => {
     }
 
     if (hasCalendly) {
-      // Booked call - send to call-booked channel
       const color = isQualified ? COLORS.GREEN : COLORS.BLUE;
       const title = isQualified
         ? '📞 New Call Booked - QUALIFIED'
@@ -181,7 +180,7 @@ router.post('/webhook', async (req, res) => {
       const embed = createEmbed(title, discordFields, color);
       await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, embed);
     } else {
-      // New lead - create contact in GHL + send to new-lead channel
+      // Create contact in GHL
       const contactData = {
         firstName,
         lastName,
@@ -190,6 +189,7 @@ router.post('/webhook', async (req, res) => {
         locationId: process.env.GHL_LOCATION_ID,
         source: source || 'Typeform',
         tags: ['typeform-lead'],
+        customField: {}
       };
 
       if (firstName || email || phone) {
