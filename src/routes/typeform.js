@@ -52,6 +52,11 @@ async function createGHLContact(contactData) {
   }
 }
 
+function isUQCalendarUrl(url) {
+  const lower = url.toLowerCase();
+  return lower.includes('uq') || lower.includes('uq-career-coaching');
+}
+
 router.post('/webhook', async (req, res) => {
   try {
     const payload = req.body;
@@ -72,8 +77,6 @@ router.post('/webhook', async (req, res) => {
     let email = '';
     let source = '';
     let creditScore = '';
-    let income = '';
-    let isResident = '';
 
     const now = new Date().toLocaleDateString('en-GB');
     discordFields.push({ name: 'Time', value: now, inline: true });
@@ -111,26 +114,20 @@ router.post('/webhook', async (req, res) => {
         case 'calendly':
           hasCalendly = true;
           value = answer.url || 'Call Booked ✅';
-          if (value.toLowerCase().includes('uq')) {
-            bookedUQCalendar = true;
-          }
+          if (isUQCalendarUrl(value)) bookedUQCalendar = true;
           break;
         case 'url':
           value = answer.url || '';
           if (value.includes('calendly.com') && value.includes('invitees')) {
             hasCalendly = true;
-            if (value.toLowerCase().includes('uq')) {
-              bookedUQCalendar = true;
-            }
+            if (isUQCalendarUrl(value)) bookedUQCalendar = true;
           }
           break;
         default:
           value = answer.url || answer.text || answer.email || '';
           if (value && value.includes('calendly.com') && value.includes('invitees')) {
             hasCalendly = true;
-            if (value.toLowerCase().includes('uq')) {
-              bookedUQCalendar = true;
-            }
+            if (isUQCalendarUrl(value)) bookedUQCalendar = true;
           }
       }
 
@@ -138,10 +135,8 @@ router.post('/webhook', async (req, res) => {
       if (titleLower.includes('first name')) firstName = value;
       if (titleLower.includes('last name')) lastName = value;
       if (titleLower.includes('how did you hear')) source = value;
-      if (titleLower.includes('permanent resident')) isResident = value;
-      if (titleLower.includes('earning') || titleLower.includes('income')) income = value;
 
-      // Qualifying logic - investment question
+      // Qualifying logic
       if (titleLower.includes('invest') || titleLower.includes('£3500') || titleLower.includes('payment plan')) {
         const valueLower = value.toLowerCase();
         if (valueLower.includes('yes') || valueLower.includes('can invest')) {
@@ -149,7 +144,7 @@ router.post('/webhook', async (req, res) => {
         }
       }
 
-      // Credit score check for premium leads
+      // Credit score check
       if (titleLower.includes('credit score') || titleLower.includes('experian')) {
         creditScore = value;
         const scoreLower = value.toLowerCase();
@@ -171,15 +166,8 @@ router.post('/webhook', async (req, res) => {
         if (value.toLowerCase().includes('unemployed')) isEligibleForGHL = false;
       }
 
-      // Skip calendar booking fields from Discord - they're long URLs
+      // Skip calendar booking URLs entirely from Discord
       if (fieldTitle === 'UQ Calendar Booking' || fieldTitle === 'Main Calendar Booking') {
-        if (value) {
-          discordFields.push({
-            name: fieldTitle.substring(0, 256),
-            value: String(value).substring(0, 1024),
-            inline: true
-          });
-        }
         return;
       }
 
@@ -217,19 +205,15 @@ router.post('/webhook', async (req, res) => {
     }
 
     if (hasCalendly) {
-      // Determine colour based on lead quality
       let color, title;
 
       if (isPremiumLead && !bookedUQCalendar) {
-        // Gold - best leads: qualified + 600+ credit score + main calendar
         color = COLORS.GOLD;
         title = '🥇 New Call Booked - PREMIUM QUALIFIED';
       } else if (isQualified) {
-        // Green - qualified but UQ calendar or lower credit score
         color = COLORS.GREEN;
         title = '📞 New Call Booked - QUALIFIED';
       } else {
-        // Blue - unqualified
         color = COLORS.BLUE;
         title = '📞 New Call Booked - UNQUALIFIED';
       }
@@ -238,7 +222,6 @@ router.post('/webhook', async (req, res) => {
       await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, embed);
 
     } else {
-      // New lead - only create GHL contact if eligible
       if (isEligibleForGHL && (firstName || email || phone)) {
         const contactData = {
           firstName,
