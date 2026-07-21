@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { sendToAll, createEmbed, COLORS } = require('../utils/discord');
+const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendSlackMessage } = require('../utils/slack');
 const { google } = require('googleapis');
 
 async function getSheets() {
@@ -62,12 +63,7 @@ async function addToSheet(body) {
       profileLink,
       now,
       body.appointment_date || '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
+      '', '', '', '', '', '',
       body.appointment_id || '',
       '',
       body.assigned_user || '',
@@ -88,7 +84,8 @@ async function addToSheet(body) {
 router.post('/booked-call', async (req, res) => {
   try {
     const embed = createEmbed('📞 Pipeline: Call Booked', buildCallFields(req.body, 'Call Booked'), COLORS.PURPLE);
-    await sendToAll(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, process.env.SLACK_WEBHOOK_BOOKED_CALLS, embed);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, embed);
+    await sendSlackMessage(process.env.SLACK_WEBHOOK_BOOKED_CALLS, embed);
     await addToSheet(req.body);
     res.json({ success: true });
   } catch (err) {
@@ -99,7 +96,8 @@ router.post('/booked-call', async (req, res) => {
 router.post('/confirmed-call', async (req, res) => {
   try {
     const embed = createEmbed('✅ Pipeline: Confirmed Call', buildCallFields(req.body, 'Confirmed'), COLORS.GREEN);
-    await sendToAll(process.env.DISCORD_WEBHOOK_CONFIRMED_CALLS, process.env.SLACK_WEBHOOK_CONFIRMED_CALLS, embed);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_CONFIRMED_CALLS, embed);
+    await sendSlackMessage(process.env.SLACK_WEBHOOK_CONFIRMED_CALLS, embed);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -109,7 +107,8 @@ router.post('/confirmed-call', async (req, res) => {
 router.post('/no-show', async (req, res) => {
   try {
     const embed = createEmbed('❌ Pipeline: No Show', buildCallFields(req.body, 'No Show'), COLORS.RED);
-    await sendToAll(process.env.DISCORD_WEBHOOK_NO_SHOW, process.env.SLACK_WEBHOOK_NO_SHOW, embed);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NO_SHOW, embed);
+    await sendSlackMessage(process.env.SLACK_WEBHOOK_NO_SHOW, embed);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -119,7 +118,8 @@ router.post('/no-show', async (req, res) => {
 router.post('/cancelled', async (req, res) => {
   try {
     const embed = createEmbed('🚫 Pipeline: Cancelled', buildCallFields(req.body, 'Cancelled'), COLORS.ORANGE);
-    await sendToAll(process.env.DISCORD_WEBHOOK_CANCELLED, process.env.SLACK_WEBHOOK_CANCELLED, embed);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_CANCELLED, embed);
+    await sendSlackMessage(process.env.SLACK_WEBHOOK_CANCELLED, embed);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -129,7 +129,8 @@ router.post('/cancelled', async (req, res) => {
 router.post('/follow-up', async (req, res) => {
   try {
     const embed = createEmbed('🔄 Pipeline: Follow Up', buildCallFields(req.body, 'Follow Up'), COLORS.YELLOW);
-    await sendToAll(process.env.DISCORD_WEBHOOK_FOLLOW_UP, process.env.SLACK_WEBHOOK_FOLLOW_UP, embed);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FOLLOW_UP, embed);
+    await sendSlackMessage(process.env.SLACK_WEBHOOK_FOLLOW_UP, embed);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -161,7 +162,8 @@ router.post('/closed-deal', async (req, res) => {
     ];
 
     const embed = createEmbed('🏆 Pipeline: Closed Deal', fields, COLORS.GOLD);
-    await sendToAll(process.env.DISCORD_WEBHOOK_CLOSED_DEAL, process.env.SLACK_WEBHOOK_CLOSED_DEAL, embed);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_CLOSED_DEAL, embed);
+    await sendSlackMessage(process.env.SLACK_WEBHOOK_CLOSED_DEAL, embed);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
