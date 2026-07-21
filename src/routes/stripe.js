@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const { sendToAll, createEmbed, COLORS } = require('../utils/discord');
+const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendSlackMessage } = require('../utils/slack');
 
 function buildPaymentFields(data) {
   return [
@@ -18,11 +19,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(
-      req.body,
-      sig,
-      process.env.STRIPE_WEBHOOK_SECRET
-    );
+    event = stripe.webhooks.constructEvent(req.body, sig, process.env.STRIPE_WEBHOOK_SECRET);
   } catch (err) {
     console.error('Stripe signature error:', err.message);
     return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -31,7 +28,6 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
   try {
     const obj = event.data.object;
     const amount = obj.amount ? `£${(obj.amount / 100).toFixed(2)}` : 'N/A';
-
     const data = {
       name: obj.billing_details?.name || obj.customer_details?.name || 'N/A',
       amount,
@@ -39,18 +35,20 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       phone: obj.billing_details?.phone || obj.customer_details?.phone || 'N/A',
       product: obj.description || obj.metadata?.product_name || 'N/A',
     };
-
     const fields = buildPaymentFields(data);
 
     if (event.type === 'payment_intent.succeeded') {
       const embed = createEmbed('💳 New Stripe Payment', fields, COLORS.GOLD);
-      await sendToAll(process.env.DISCORD_WEBHOOK_NEW_PAYMENTS, process.env.SLACK_WEBHOOK_NEW_PAYMENTS, embed);
+      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_PAYMENTS, embed);
+      await sendSlackMessage(process.env.SLACK_WEBHOOK_NEW_PAYMENTS, embed);
     } else if (event.type === 'payment_intent.payment_failed') {
       const embed = createEmbed('❌ Failed Stripe Payment', fields, COLORS.RED);
-      await sendToAll(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendSlackMessage(process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
     } else if (event.type === 'charge.dispute.created') {
       const embed = createEmbed('⚠️ Stripe Dispute', fields, COLORS.ORANGE);
-      await sendToAll(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendSlackMessage(process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
     }
 
     res.json({ received: true });
