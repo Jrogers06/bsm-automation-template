@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendToAll, createEmbed, COLORS } = require('../utils/discord');
 const axios = require('axios');
 
 function abbreviateTitle(title) {
@@ -166,7 +166,7 @@ router.post('/webhook', async (req, res) => {
         if (value.toLowerCase().includes('unemployed')) isEligibleForGHL = false;
       }
 
-      // Skip calendar booking URLs entirely from Discord
+      // Skip calendar booking URLs entirely
       if (fieldTitle === 'UQ Calendar Booking' || fieldTitle === 'Main Calendar Booking') {
         return;
       }
@@ -219,7 +219,7 @@ router.post('/webhook', async (req, res) => {
       }
 
       const embed = createEmbed(title, discordFields, color);
-      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, embed);
+      await sendToAll(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, process.env.SLACK_WEBHOOK_BOOKED_CALLS, embed);
 
     } else {
       if (isEligibleForGHL && (firstName || email || phone)) {
@@ -236,7 +236,7 @@ router.post('/webhook', async (req, res) => {
       }
 
       const embed = createEmbed('New Lead Optin', discordFields, COLORS.BLUE);
-      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, embed);
+      await sendToAll(process.env.DISCORD_WEBHOOK_NEW_LEADS, process.env.SLACK_WEBHOOK_NEW_LEADS, embed);
     }
 
     res.json({ success: true });
