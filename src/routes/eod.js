@@ -1,10 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendToAll, createEmbed, COLORS } = require('../utils/discord');
 
 function getEmbedConfig(formTitle) {
   const title = formTitle.toLowerCase();
-  
   if (title.includes('closer')) {
     return { emoji: '📊', label: 'Closer EOD', color: COLORS.BLUE };
   } else if (title.includes('setter') && title.includes('manager')) {
@@ -28,7 +27,6 @@ router.post('/webhook', async (req, res) => {
     const formTitle = payload.form_title || 'EOD Report';
     const submittedAt = payload.submitted_at || new Date().toLocaleString();
     const answers = payload.answers || {};
-
     const config = getEmbedConfig(formTitle);
 
     const discordFields = Object.entries(answers).map(([question, answer]) => ({
@@ -46,8 +44,7 @@ router.post('/webhook', async (req, res) => {
       footer: { text: 'BSM Form Bot' }
     };
 
-    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_DAILY_REPORTS, embed);
-
+    await sendToAll(process.env.DISCORD_WEBHOOK_DAILY_REPORTS, process.env.SLACK_WEBHOOK_DAILY_REPORTS, embed);
     res.json({ success: true });
   } catch (err) {
     console.error('EOD webhook error:', err);
