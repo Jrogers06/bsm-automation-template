@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { sendToAll, createEmbed, COLORS } = require('../utils/discord');
+const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendSlackMessage } = require('../utils/slack');
 
 router.post('/webhook', async (req, res) => {
   try {
@@ -23,7 +24,8 @@ router.post('/webhook', async (req, res) => {
     }
 
     const embed = createEmbed(title, discordFields, COLORS.PURPLE);
-    await sendToAll(process.env.DISCORD_WEBHOOK_AD_REPORTS, process.env.SLACK_WEBHOOK_AD_REPORTS, embed);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_AD_REPORTS, embed);
+    await sendSlackMessage(process.env.SLACK_WEBHOOK_AD_REPORTS, embed);
 
     res.json({ success: true });
   } catch (err) {
