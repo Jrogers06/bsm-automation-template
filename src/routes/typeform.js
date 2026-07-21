@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { sendToAll, createEmbed, COLORS } = require('../utils/discord');
+const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendSlackMessage } = require('../utils/slack');
 const axios = require('axios');
 
 function abbreviateTitle(title) {
@@ -136,7 +137,6 @@ router.post('/webhook', async (req, res) => {
       if (titleLower.includes('last name')) lastName = value;
       if (titleLower.includes('how did you hear')) source = value;
 
-      // Qualifying logic
       if (titleLower.includes('invest') || titleLower.includes('£3500') || titleLower.includes('payment plan')) {
         const valueLower = value.toLowerCase();
         if (valueLower.includes('yes') || valueLower.includes('can invest')) {
@@ -144,21 +144,14 @@ router.post('/webhook', async (req, res) => {
         }
       }
 
-      // Credit score check
       if (titleLower.includes('credit score') || titleLower.includes('experian')) {
         creditScore = value;
         const scoreLower = value.toLowerCase();
-        if (
-          scoreLower.includes('800') ||
-          scoreLower.includes('701') ||
-          scoreLower.includes('600 - 700') ||
-          scoreLower.includes('600')
-        ) {
+        if (scoreLower.includes('800') || scoreLower.includes('701') || scoreLower.includes('600 - 700') || scoreLower.includes('600')) {
           if (isQualified) isPremiumLead = true;
         }
       }
 
-      // GHL eligibility check
       if (titleLower.includes('permanent resident')) {
         if (value.toLowerCase() === 'no') isEligibleForGHL = false;
       }
@@ -166,7 +159,6 @@ router.post('/webhook', async (req, res) => {
         if (value.toLowerCase().includes('unemployed')) isEligibleForGHL = false;
       }
 
-      // Skip calendar booking URLs entirely
       if (fieldTitle === 'UQ Calendar Booking' || fieldTitle === 'Main Calendar Booking') {
         return;
       }
@@ -180,33 +172,24 @@ router.post('/webhook', async (req, res) => {
       }
     });
 
-    // Add UTM data if present
     if (hidden && Object.keys(hidden).length > 0) {
       const utmLines = Object.entries(hidden)
         .filter(([k, v]) => v)
         .map(([k, v]) => `**${k}:** ${v}`)
         .join('\n');
       if (utmLines) {
-        discordFields.push({
-          name: 'ATTRIBUTION',
-          value: utmLines,
-          inline: false
-        });
+        discordFields.push({ name: 'ATTRIBUTION', value: utmLines, inline: false });
       }
     }
 
-    // Backup Calendly check
     if (!hasCalendly) {
       hasCalendly = discordFields.some(f =>
-        f.value &&
-        f.value.includes('calendly.com') &&
-        f.value.includes('invitees')
+        f.value && f.value.includes('calendly.com') && f.value.includes('invitees')
       );
     }
 
     if (hasCalendly) {
       let color, title;
-
       if (isPremiumLead && !bookedUQCalendar) {
         color = COLORS.GOLD;
         title = '🥇 New Call Booked - PREMIUM QUALIFIED';
@@ -217,26 +200,21 @@ router.post('/webhook', async (req, res) => {
         color = COLORS.BLUE;
         title = '📞 New Call Booked - UNQUALIFIED';
       }
-
       const embed = createEmbed(title, discordFields, color);
-      await sendToAll(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, process.env.SLACK_WEBHOOK_BOOKED_CALLS, embed);
-
+      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_BOOKED_CALLS, embed);
+      await sendSlackMessage(process.env.SLACK_WEBHOOK_BOOKED_CALLS, embed);
     } else {
       if (isEligibleForGHL && (firstName || email || phone)) {
-        const contactData = {
-          firstName,
-          lastName,
-          email,
-          phone,
+        await createGHLContact({
+          firstName, lastName, email, phone,
           locationId: process.env.GHL_LOCATION_ID,
           source: source || 'Typeform',
           tags: ['typeform-lead'],
-        };
-        await createGHLContact(contactData);
+        });
       }
-
       const embed = createEmbed('New Lead Optin', discordFields, COLORS.BLUE);
-      await sendToAll(process.env.DISCORD_WEBHOOK_NEW_LEADS, process.env.SLACK_WEBHOOK_NEW_LEADS, embed);
+      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_LEADS, embed);
+      await sendSlackMessage(process.env.SLACK_WEBHOOK_NEW_LEADS, embed);
     }
 
     res.json({ success: true });
