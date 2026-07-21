@@ -1,6 +1,6 @@
 const express = require('express');
-const router = require('express').Router();
-const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const router = express.Router();
+const { sendToAll, createEmbed, COLORS } = require('../utils/discord');
 
 function buildPaymentFields(data) {
   return [
@@ -24,7 +24,6 @@ router.post('/webhook', async (req, res) => {
     let amount = 'N/A';
     let product = 'N/A';
 
-    // Extract data based on event type
     if (data.user) {
       name = data.user.name || data.user.username || 'N/A';
       email = data.user.email || 'N/A';
@@ -43,18 +42,17 @@ router.post('/webhook', async (req, res) => {
       product = data.plan.plan_type || 'N/A';
     }
 
-    const paymentData = { name, email, phone, amount, product };
-    const fields = buildPaymentFields(paymentData);
+    const fields = buildPaymentFields({ name, email, phone, amount, product });
 
     if (action === 'payment_succeeded' || action === 'membership_activated') {
       const embed = createEmbed('💳 New Whop Payment', fields, COLORS.GOLD);
-      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_PAYMENTS, embed);
+      await sendToAll(process.env.DISCORD_WEBHOOK_NEW_PAYMENTS, process.env.SLACK_WEBHOOK_NEW_PAYMENTS, embed);
     } else if (action === 'payment_failed' || action === 'membership_deactivated') {
       const embed = createEmbed('❌ Failed Whop Payment', fields, COLORS.RED);
-      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendToAll(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
     } else if (action === 'dispute_created') {
       const embed = createEmbed('⚠️ Whop Dispute', fields, COLORS.ORANGE);
-      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendToAll(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
     }
 
     res.json({ received: true });
