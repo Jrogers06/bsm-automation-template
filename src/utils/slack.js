@@ -1,5 +1,13 @@
 const axios = require('axios');
 
+function cleanForSlack(text) {
+  if (!text) return '';
+  // Convert Discord markdown links [text](url) to Slack format <url|text>
+  return String(text)
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<$2|$1>')
+    .substring(0, 1024);
+}
+
 async function sendSlackMessage(webhookUrl, embed) {
   try {
     if (!webhookUrl) return;
@@ -15,14 +23,14 @@ async function sendSlackMessage(webhookUrl, embed) {
         fieldBlocks.push({
           type: 'section',
           fields: [
-            { type: 'mrkdwn', text: `*${left.name}*\n${left.value}` },
-            { type: 'mrkdwn', text: `*${right.name}*\n${right.value}` }
+            { type: 'mrkdwn', text: `*${left.name}*\n${cleanForSlack(left.value)}` },
+            { type: 'mrkdwn', text: `*${right.name}*\n${cleanForSlack(right.value)}` }
           ]
         });
       } else {
         fieldBlocks.push({
           type: 'section',
-          text: { type: 'mrkdwn', text: `*${left.name}*\n${left.value}` }
+          text: { type: 'mrkdwn', text: `*${left.name}*\n${cleanForSlack(left.value)}` }
         });
       }
     }
@@ -38,10 +46,10 @@ async function sendSlackMessage(webhookUrl, embed) {
       ]
     };
 
-    await axios.post(webhookUrl, payload);
-    console.log('Slack message sent successfully');
+    const response = await axios.post(webhookUrl, payload);
+    console.log('Slack message sent successfully', response.status);
   } catch (error) {
-    console.error('Slack webhook error:', error.message);
+    console.error('Slack webhook error:', error.response?.data || error.message);
   }
 }
 
