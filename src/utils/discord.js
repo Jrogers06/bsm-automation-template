@@ -2,10 +2,64 @@ const axios = require('axios');
 
 async function sendDiscordMessage(webhookUrl, embed) {
   try {
+    if (!webhookUrl) return;
     await axios.post(webhookUrl, { embeds: [embed] });
   } catch (error) {
     console.error('Discord webhook error:', error.message);
   }
+}
+
+async function sendSlackMessage(webhookUrl, embed) {
+  try {
+    if (!webhookUrl) return;
+
+    // Convert Discord embed to Slack block format
+    const fields = embed.fields || [];
+    const fieldBlocks = [];
+
+    // Group fields in pairs for 2-column layout
+    for (let i = 0; i < fields.length; i += 2) {
+      const left = fields[i];
+      const right = fields[i + 1];
+
+      if (right) {
+        fieldBlocks.push({
+          type: 'section',
+          fields: [
+            { type: 'mrkdwn', text: `*${left.name}*\n${left.value}` },
+            { type: 'mrkdwn', text: `*${right.name}*\n${right.value}` }
+          ]
+        });
+      } else {
+        fieldBlocks.push({
+          type: 'section',
+          text: { type: 'mrkdwn', text: `*${left.name}*\n${left.value}` }
+        });
+      }
+    }
+
+    const payload = {
+      blocks: [
+        {
+          type: 'header',
+          text: { type: 'plain_text', text: embed.title || 'Notification', emoji: true }
+        },
+        { type: 'divider' },
+        ...fieldBlocks
+      ]
+    };
+
+    await axios.post(webhookUrl, payload);
+  } catch (error) {
+    console.error('Slack webhook error:', error.message);
+  }
+}
+
+async function sendToAll(discordUrl, slackUrl, embed) {
+  await Promise.all([
+    sendDiscordMessage(discordUrl, embed),
+    sendSlackMessage(slackUrl, embed)
+  ]);
 }
 
 function createEmbed(title, fields, color) {
@@ -34,4 +88,4 @@ const COLORS = {
   ORANGE: 0xE67E22,
 };
 
-module.exports = { sendDiscordMessage, createEmbed, COLORS };
+module.exports = { sendDiscordMessage, sendSlackMessage, sendToAll, createEmbed, COLORS };
