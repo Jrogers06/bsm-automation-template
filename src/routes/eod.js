@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { sendToAll, createEmbed, COLORS } = require('../utils/discord');
+const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendSlackMessage } = require('../utils/slack');
 
 function getEmbedConfig(formTitle) {
   const title = formTitle.toLowerCase();
@@ -44,7 +45,8 @@ router.post('/webhook', async (req, res) => {
       footer: { text: 'BSM Form Bot' }
     };
 
-    await sendToAll(process.env.DISCORD_WEBHOOK_DAILY_REPORTS, process.env.SLACK_WEBHOOK_DAILY_REPORTS, embed);
+    await sendDiscordMessage(process.env.DISCORD_WEBHOOK_DAILY_REPORTS, embed);
+    await sendSlackMessage(process.env.SLACK_WEBHOOK_DAILY_REPORTS, embed);
     res.json({ success: true });
   } catch (err) {
     console.error('EOD webhook error:', err);
