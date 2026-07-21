@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendToAll, createEmbed, COLORS } = require('../utils/discord');
 
 router.post('/webhook', async (req, res) => {
   try {
@@ -14,20 +14,16 @@ router.post('/webhook', async (req, res) => {
       inline: false
     }));
 
-    let webhookUrl = process.env.DISCORD_WEBHOOK_AD_REPORTS;
     let title = `📊 ${reportType}`;
-
     const typeLower = reportType.toLowerCase();
     if (typeLower.includes('email') || typeLower.includes('sms')) {
-      webhookUrl = process.env.DISCORD_WEBHOOK_AD_REPORTS;
       title = `📧 ${reportType}`;
     } else if (typeLower.includes('website') || typeLower.includes('optimis')) {
-      webhookUrl = process.env.DISCORD_WEBHOOK_AD_REPORTS;
       title = `🌐 ${reportType}`;
     }
 
     const embed = createEmbed(title, discordFields, COLORS.PURPLE);
-    await sendDiscordMessage(webhookUrl, embed);
+    await sendToAll(process.env.DISCORD_WEBHOOK_AD_REPORTS, process.env.SLACK_WEBHOOK_AD_REPORTS, embed);
 
     res.json({ success: true });
   } catch (err) {
