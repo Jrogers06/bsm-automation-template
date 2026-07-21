@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
-const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendToAll, createEmbed, COLORS } = require('../utils/discord');
 
 function buildPaymentFields(data) {
   return [
@@ -30,9 +30,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
   try {
     const obj = event.data.object;
-    const amount = obj.amount
-      ? `£${(obj.amount / 100).toFixed(2)}`
-      : 'N/A';
+    const amount = obj.amount ? `£${(obj.amount / 100).toFixed(2)}` : 'N/A';
 
     const data = {
       name: obj.billing_details?.name || obj.customer_details?.name || 'N/A',
@@ -46,13 +44,13 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
     if (event.type === 'payment_intent.succeeded') {
       const embed = createEmbed('💳 New Stripe Payment', fields, COLORS.GOLD);
-      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_PAYMENTS, embed);
+      await sendToAll(process.env.DISCORD_WEBHOOK_NEW_PAYMENTS, process.env.SLACK_WEBHOOK_NEW_PAYMENTS, embed);
     } else if (event.type === 'payment_intent.payment_failed') {
       const embed = createEmbed('❌ Failed Stripe Payment', fields, COLORS.RED);
-      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendToAll(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
     } else if (event.type === 'charge.dispute.created') {
       const embed = createEmbed('⚠️ Stripe Dispute', fields, COLORS.ORANGE);
-      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendToAll(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
     }
 
     res.json({ received: true });
