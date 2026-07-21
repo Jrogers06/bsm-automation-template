@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const { sendToAll, createEmbed, COLORS } = require('../utils/discord');
+const { sendDiscordMessage, createEmbed, COLORS } = require('../utils/discord');
+const { sendSlackMessage } = require('../utils/slack');
 
 function buildPaymentFields(data) {
   return [
@@ -18,24 +19,18 @@ router.post('/webhook', async (req, res) => {
     const action = event.action || event.event;
     const data = event.data || {};
 
-    let name = 'N/A';
-    let email = 'N/A';
-    let phone = 'N/A';
-    let amount = 'N/A';
-    let product = 'N/A';
+    let name = 'N/A', email = 'N/A', phone = 'N/A', amount = 'N/A', product = 'N/A';
 
     if (data.user) {
       name = data.user.name || data.user.username || 'N/A';
       email = data.user.email || 'N/A';
       phone = data.user.phone_number || 'N/A';
     }
-
     if (data.final_amount !== undefined) {
       amount = `£${(data.final_amount / 100).toFixed(2)}`;
     } else if (data.amount !== undefined) {
       amount = `£${(data.amount / 100).toFixed(2)}`;
     }
-
     if (data.product) {
       product = data.product.name || 'N/A';
     } else if (data.plan) {
@@ -46,13 +41,16 @@ router.post('/webhook', async (req, res) => {
 
     if (action === 'payment_succeeded' || action === 'membership_activated') {
       const embed = createEmbed('💳 New Whop Payment', fields, COLORS.GOLD);
-      await sendToAll(process.env.DISCORD_WEBHOOK_NEW_PAYMENTS, process.env.SLACK_WEBHOOK_NEW_PAYMENTS, embed);
+      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_NEW_PAYMENTS, embed);
+      await sendSlackMessage(process.env.SLACK_WEBHOOK_NEW_PAYMENTS, embed);
     } else if (action === 'payment_failed' || action === 'membership_deactivated') {
       const embed = createEmbed('❌ Failed Whop Payment', fields, COLORS.RED);
-      await sendToAll(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendSlackMessage(process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
     } else if (action === 'dispute_created') {
       const embed = createEmbed('⚠️ Whop Dispute', fields, COLORS.ORANGE);
-      await sendToAll(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendDiscordMessage(process.env.DISCORD_WEBHOOK_FAILED_PAYMENTS, embed);
+      await sendSlackMessage(process.env.SLACK_WEBHOOK_FAILED_PAYMENTS, embed);
     }
 
     res.json({ received: true });
